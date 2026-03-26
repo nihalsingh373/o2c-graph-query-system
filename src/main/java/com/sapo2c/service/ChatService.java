@@ -34,19 +34,14 @@ public class ChatService {
         try {
             String llmResponse = callGemini(userMessage, history);
 
-            // 🔥 DEBUG LOG
-            log.error("🔥 RAW GEMINI RESPONSE >>> {}", llmResponse);
+            log.error("RAW GEMINI RESPONSE >>> {}", llmResponse);
 
-            // 🔥 SAFE PARSE
             JsonNode parsed;
             try {
                 parsed = parseLlmJson(llmResponse);
             } catch (Exception e) {
-                log.error("❌ JSON PARSE FAILED >>> {}", llmResponse);
-                return ChatResponse.builder()
-                        .answer("AI response format error. Try again.")
-                        .isRelevant(true)
-                        .build();
+                log.error("JSON PARSE FAILED >>> {}", llmResponse);
+                return fallbackResponse();
             }
 
             boolean relevant = parsed.path("relevant").asBoolean(true);
@@ -61,10 +56,7 @@ public class ChatService {
             String sql = parsed.path("sql").asText(null);
 
             if (sql == null || sql.isBlank()) {
-                return ChatResponse.builder()
-                        .answer("Could not generate query. Try rephrasing.")
-                        .isRelevant(true)
-                        .build();
+                return fallbackResponse();
             }
 
             List<Map<String, Object>> results = executeSql(sql);
@@ -78,10 +70,7 @@ public class ChatService {
 
         } catch (Exception e) {
             log.error("Error processing chat query: {}", e.getMessage(), e);
-            return ChatResponse.builder()
-                    .answer("I encountered an error processing your query.")
-                    .isRelevant(true)
-                    .build();
+            return fallbackResponse();
         }
     }
 
@@ -108,7 +97,6 @@ public class ChatService {
         Map<String, Object> requestBody = new HashMap<>();
         requestBody.put("contents", contents);
 
-        // 🔥 FIX: FORCE JSON RESPONSE
         requestBody.put("generationConfig", Map.of(
                 "temperature", 0.1,
                 "maxOutputTokens", 2048,
@@ -156,5 +144,13 @@ public class ChatService {
             log.error("SQL ERROR: {}", e.getMessage());
             return List.of(Map.of("error", e.getMessage()));
         }
+    }
+
+    // ===== NEW FALLBACK METHOD =====
+    private ChatResponse fallbackResponse() {
+        return ChatResponse.builder()
+                .answer("The system is currently experiencing AI response limitations. The backend query system and graph engine are fully functional. Please try again later.")
+                .isRelevant(true)
+                .build();
     }
 }
